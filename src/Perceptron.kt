@@ -18,7 +18,8 @@ class Perceptron(
     lateinit var csvWriter: CSVWriter
 
     val epoch = 10000
-    val N = 0.1
+    val threshold = 0.000_000_000_001
+    val N = 0.25
     val M = 0.9
 
     val input = DoubleArray(inputSize)
@@ -50,13 +51,13 @@ class Perceptron(
         return Array(size) { ThreadLocalRandom.current().nextDouble(-0.3, 0.3) }
     }
 
-    fun sigmoid(d: Double, reverse: Boolean = false): Double = if (reverse) dsigExp(d) else sigExp(d)
-//    fun sigmoid(d: Double, reverse: Boolean = false): Double = if (reverse) dsigTan(d) else sigTan(d)
+//    fun sigmoid(d: Double, reverse: Boolean = false): Double = if (reverse) dsigExp(d) else sigExp(d)
+    fun sigmoid(d: Double, reverse: Boolean = false): Double = if (reverse) dsigTan(d) else sigTan(d)
 //
-    fun sigExp(x: Double) = 1 / (1 + exp(-x))
-    fun dsigExp(y: Double) = y * (1 - y)
-//    fun sigTan(x: Double) = Math.tanh(x)
-//    fun dsigTan(y: Double) = 1 - y * y
+//    fun sigExp(x: Double) = 1 / (1 + exp(-x))
+//    fun dsigExp(y: Double) = y * (1 - y)
+    fun sigTan(x: Double) = Math.tanh(x)
+    fun dsigTan(y: Double) = 1 - y * y
 
     init {
         for (weightsFile in weightsFiles) {
@@ -127,24 +128,28 @@ class Perceptron(
     }
 
     fun train() {
+        dweightsInput = Array(inputSize + 1) { DoubleArray(hidden1Size) { 0.0 } }
+        dweightsHidden = Array(hidden1Size + 1) { DoubleArray(hidden2Size) { 0.0 } }
+        dweightsOutput = Array(hidden2Size + 1) { DoubleArray(outputSize) { 0.0 } }
+
         for (ep in 0 until epoch) {
 
             outputError.forEachIndexed { i, _ ->
-                outputError[i] = (output[i] - target[i]) * sigmoid(output[i], true)
+                outputError[i] = (target[i] - output[i]) * sigmoid(output[i], true)
             }
             hidden2Error.forEachIndexed { oi, _ ->
                 var sum = 0.0
                 outputError.forEachIndexed { ii, _ ->
-                    sum += outputError[ii] * weightsOutput[oi][ii] * sigmoid(hidden2[oi], true)
+                    sum += outputError[ii] * weightsOutput[oi][ii]
                 }
-                hidden2Error[oi] = sum
+                hidden2Error[oi] = sum * sigmoid(hidden2[oi], true)
             }
             hidden1Error.forEachIndexed { oi, _ ->
                 var sum = 0.0
                 hidden2Error.forEachIndexed { ii, _ ->
-                    sum += hidden2Error[ii] * weightsHidden[oi][ii] * sigmoid(hidden1[oi], true)
+                    sum += hidden2Error[ii] * weightsHidden[oi][ii]
                 }
-                hidden1Error[oi] = sum
+                hidden1Error[oi] = sum * sigmoid(hidden1[oi], true)
             }
 
             weightsOutput.forEachIndexed { oi, _ ->
@@ -170,16 +175,23 @@ class Perceptron(
             }
 
             calculate()
-            if (ep % 1000 == 0) {
-                println("rmse after $ep attempts = " + calculateError(target, output))
+//            if (ep % 1000 == 0) {
+//                println("rmse after $ep attempts = " + calculateError(target, output))
+//            }
+
+            if (calculateError(target, output) < threshold) {
+//                println("threshold at $ep attempt")
+                break
             }
         }
+//        println("rmse = " + calculateError(target, output))
+//        saveWeigths()
     }
 
     fun setInputs(inputArray: DoubleArray) {
         if (input.size == inputArray.size) {
             input.forEachIndexed { i, _ ->
-                input[i] = inputArray[i]
+                input[i] = 1 / inputArray[i]
             }
         }
     }
@@ -187,7 +199,7 @@ class Perceptron(
     fun setTarget(targetArray: DoubleArray) {
         if (target.size == targetArray.size) {
             target.forEachIndexed { i, _ ->
-                target[i] = targetArray[i]
+                target[i] = 1 / targetArray[i]
             }
         }
     }
